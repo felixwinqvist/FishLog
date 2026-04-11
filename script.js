@@ -309,6 +309,25 @@ async function deleteFish(id) {
     showSuccess('🗑️ Fångst borttagen');
 }
 
+async function deleteFish(id) {
+    const confirmed = confirm('Är du säker på att du vill ta bort denna fångst?');
+    if (!confirmed) return;
+
+    const { error } = await supabase
+        .from('catches')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error(error);
+        alert('Kunde inte ta bort fångsten');
+        return;
+    }
+
+    closeModal();
+    await loadCatches();
+    showSuccess('🗑️ Fångst borttagen');
+}
 function displayStats() {
     const statsContainer = document.getElementById('statsContainer');
     const topFishContainer = document.getElementById('topFishContainer');
