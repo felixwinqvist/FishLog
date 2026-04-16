@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FishLog - Logga dina fångster</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="img/FishLogLogo.png">
-    <link rel="apple-touch-icon" href="img/FishLogLogo.png">
-    
 </head>
 <body>
     <header>
@@ -15,6 +12,10 @@
             <div class="logo">
                 <span class="logo-icon">🎣</span>
                 <span>FishLog</span>
+            </div>
+            <div class="user-bar">
+                <div id="userStatus" class="user-status">Inte inloggad</div>
+                <button id="logoutBtn" class="nav-btn logout-btn" type="button">Logga ut</button>
             </div>
             <nav>
                 <button class="nav-btn active" onclick="showView('add', this)">➕ Lägg till</button>
@@ -25,6 +26,47 @@
     </header>
 
     <div class="container">
+        <section id="authSection" class="auth-section">
+            <div class="auth-hero">
+                <p class="auth-kicker">Din personliga fiskedagbok</p>
+                <h1>Skapa konto och spara dina egna fångster</h1>
+                <p class="auth-text">När du loggar in får du din egen samling, dina bilder och din egen statistik kopplad till ditt konto.</p>
+            </div>
+
+            <div class="auth-grid">
+                <div class="card auth-card">
+                    <h2 class="auth-title">Logga in</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="loginEmail">E-post</label>
+                            <input type="email" id="loginEmail" placeholder="dinmail@exempel.se" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Lösenord</label>
+                            <input type="password" id="loginPassword" placeholder="Minst 6 tecken" required>
+                        </div>
+                        <button type="submit" class="btn auth-btn">Logga in</button>
+                    </form>
+                </div>
+
+                <div class="card auth-card">
+                    <h2 class="auth-title">Skapa konto</h2>
+                    <form id="signupForm">
+                        <div class="form-group">
+                            <label for="signupEmail">E-post</label>
+                            <input type="email" id="signupEmail" placeholder="dinmail@exempel.se" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="signupPassword">Lösenord</label>
+                            <input type="password" id="signupPassword" placeholder="Minst 6 tecken" minlength="6" required>
+                        </div>
+                        <button type="submit" class="btn auth-btn">Skapa konto</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section id="appSection" class="app-section hidden">
         <!-- Add Fish View -->
         <div id="add" class="view active">
             <h2 class="section-title">🎣 Logga ny fångst</h2>
@@ -135,6 +177,7 @@
             <h3 class="section-title section-subtitle">📍 Populäraste platserna</h3>
             <div id="topLocationsContainer"></div>
         </div>
+        </section>
     </div>
 
     <!-- Fish Detail Modal -->

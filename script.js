@@ -6,6 +6,20 @@ const supabase = createClient(
 );
 
 let catches = [];
+let currentUser = null;
+
+const authSection = document.getElementById('authSection');
+const appSection = document.getElementById('appSection');
+const logoutBtn = document.getElementById('logoutBtn');
+const userStatus = document.getElementById('userStatus');
+const addFishForm = document.getElementById('addFishForm');
+const loginForm = document.getElementById('loginForm');
+const signupForm = document.getElementById('signupForm');
+const fishDateInput = document.getElementById('fishDate');
+
+if (fishDateInput) {
+    fishDateInput.valueAsDate = new Date();
+}
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -40,6 +54,34 @@ function formatDate(dateString) {
     }).format(date);
 }
 
+function getStoragePathFromValue(value) {
+    if (!value) return null;
+    if (!value.startsWith('http')) return value;
+
+    const marker = '/storage/v1/object/public/fish-images/';
+    const markerIndex = value.indexOf(marker);
+    if (markerIndex === -1) return null;
+
+    return value.slice(markerIndex + marker.length);
+}
+
+async function resolveImageUrl(imageValue) {
+    if (!imageValue) return '';
+    if (imageValue.startsWith('http')) return imageValue;
+
+    const { data, error } = await supabase
+        .storage
+        .from('fish-images')
+        .createSignedUrl(imageValue, 60 * 60);
+
+    if (error) {
+        console.error('Fel vid hämtning av bild-URL:', error);
+        return '';
+    }
+
+    return data.signedUrl;
+}
+
 function getLocationStats() {
     const locations = new Map();
 
@@ -70,30 +112,56 @@ function getSpeciesStats() {
     return [...speciesMap.values()].sort((a, b) => b.count - a.count);
 }
 
-// ======================
-// INIT
-// ======================
-const fishDateInput = document.getElementById('fishDate');
-if (fishDateInput) {
-    fishDateInput.valueAsDate = new Date();
+function updateAuthUI() {
+    const loggedIn = Boolean(currentUser);
+
+    authSection.classList.toggle('hidden', loggedIn);
+    appSection.classList.toggle('hidden', !loggedIn);
+    logoutBtn.classList.toggle('visible', loggedIn);
+    userStatus.textContent = loggedIn
+        ? `Inloggad som ${currentUser.email}`
+        : 'Inte inloggad';
 }
 
+function clearAppState() {
+    catches = [];
+    updateFilterOptions();
+    displayCollection([]);
+    displayStats();
+    closeModal();
+}
 
-// ======================
-// LOAD DATA
-// ======================
+async function refreshAuthState(session) {
+    currentUser = session?.user || null;
+    updateAuthUI();
+
+    if (currentUser) {
+        await loadCatches();
+        return;
+    }
+
+    clearAppState();
+}
+
 async function loadCatches() {
+    if (!currentUser) {
+        clearAppState();
+        return;
+    }
+
     const { data, error } = await supabase
         .from('catches')
         .select('*')
+        .eq('user_id', currentUser.id)
         .order('catch_date', { ascending: false });
 
     if (error) {
         console.error('Fel vid hämtning:', error);
+        showSuccess('Kunde inte läsa in dina fångster just nu.');
         return;
     }
 
-    catches = (data || []).map(item => ({
+    catches = await Promise.all((data || []).map(async item => ({
         id: item.id,
         species: item.species,
         weight: Number(item.weight),
@@ -101,21 +169,20 @@ async function loadCatches() {
         location: item.location,
         date: item.catch_date,
         notes: item.notes,
-        image: item.image_url
-    }));
+        imagePath: getStoragePathFromValue(item.image_url),
+        image: await resolveImageUrl(item.image_url)
+    })));
 
     updateFilterOptions();
     displayCollection();
     displayStats();
 }
 
-
-// ======================
-// NAVIGATION
-// ======================
 function showView(viewName, btn) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    if (!currentUser) return;
+
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(navButton => navButton.classList.remove('active'));
 
     document.getElementById(viewName).classList.add('active');
     if (btn) btn.classList.add('active');
@@ -130,21 +197,17 @@ function showView(viewName, btn) {
     }
 }
 
-
-// ======================
-// IMAGE PREVIEW
-// ======================
 function previewImage(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = loadEvent => {
         const preview = document.getElementById('imagePreview');
         const uploadText = document.getElementById('uploadText');
         const uploadArea = document.getElementById('imageUploadArea');
 
-        preview.src = e.target.result;
+        preview.src = loadEvent.target.result;
         preview.style.display = 'block';
         uploadText.style.display = 'none';
         uploadArea.classList.add('has-image');
@@ -153,15 +216,97 @@ function previewImage(event) {
     reader.readAsDataURL(file);
 }
 
+function resetForm() {
+    document.getElementById('addFishForm').reset();
+    document.getElementById('imagePreview').style.display = 'none';
+    document.getElementById('uploadText').style.display = 'block';
+    document.getElementById('imageUploadArea').classList.remove('has-image');
 
-// ======================
-// ADD FISH
-// ======================
-const addFishForm = document.getElementById('addFishForm');
+    if (fishDateInput) {
+        fishDateInput.valueAsDate = new Date();
+    }
+}
+
+function showSuccess(msg) {
+    const div = document.createElement('div');
+    div.className = 'success-message';
+    div.textContent = msg;
+    document.body.appendChild(div);
+
+    setTimeout(() => div.remove(), 3000);
+}
+
+async function handleAuthFormSubmit(type, email, password) {
+    if (!email || !password) return;
+
+    const action = type === 'login'
+        ? supabase.auth.signInWithPassword({ email, password })
+        : supabase.auth.signUp({ email, password });
+
+    const { data, error } = await action;
+
+    if (error) {
+        console.error(error);
+        alert(error.message);
+        return;
+    }
+
+    if (type === 'signup') {
+        if (data.session) {
+            showSuccess('Konto skapat och du är nu inloggad.');
+        } else {
+            showSuccess('Konto skapat. Kolla din e-post om bekräftelse krävs.');
+        }
+    } else {
+        showSuccess('Välkommen tillbaka!');
+    }
+}
+
+if (loginForm) {
+    loginForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        await handleAuthFormSubmit(
+            'login',
+            document.getElementById('loginEmail').value.trim(),
+            document.getElementById('loginPassword').value
+        );
+        loginForm.reset();
+    });
+}
+
+if (signupForm) {
+    signupForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        await handleAuthFormSubmit(
+            'signup',
+            document.getElementById('signupEmail').value.trim(),
+            document.getElementById('signupPassword').value
+        );
+        signupForm.reset();
+    });
+}
+
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error(error);
+            alert('Kunde inte logga ut just nu.');
+            return;
+        }
+
+        showSuccess('Du är nu utloggad.');
+    });
+}
 
 if (addFishForm) {
-    addFishForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    addFishForm.addEventListener('submit', async event => {
+        event.preventDefault();
+
+        if (!currentUser) {
+            alert('Du måste vara inloggad för att spara en fångst.');
+            return;
+        }
 
         const imageFile = document.getElementById('fishImage').files[0];
 
@@ -172,12 +317,12 @@ if (addFishForm) {
 
         const fileExt = imageFile.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `catches/${fileName}`;
+        const filePath = `${currentUser.id}/${fileName}`;
 
         const { error: uploadError } = await supabase
             .storage
             .from('fish-images')
-            .upload(filePath, imageFile);
+            .upload(filePath, imageFile, { upsert: false });
 
         if (uploadError) {
             console.error(uploadError);
@@ -185,21 +330,15 @@ if (addFishForm) {
             return;
         }
 
-        const { data } = supabase
-            .storage
-            .from('fish-images')
-            .getPublicUrl(filePath);
-
-        const imageUrl = data.publicUrl;
-
         const newCatch = {
+            user_id: currentUser.id,
             species: document.getElementById('fishSpecies').value,
             weight: parseFloat(document.getElementById('fishWeight').value),
             length: parseFloat(document.getElementById('fishLength').value) || null,
             location: document.getElementById('fishLocation').value,
             catch_date: document.getElementById('fishDate').value,
             notes: document.getElementById('fishNotes').value,
-            image_url: imageUrl
+            image_url: filePath
         };
 
         const { error: insertError } = await supabase
@@ -221,18 +360,18 @@ if (addFishForm) {
     });
 }
 
-
-// ======================
-// DELETE FISH
-// ======================
 async function deleteFish(id) {
+    if (!currentUser) return;
+
+    const fish = catches.find(catchItem => catchItem.id === id);
     const confirmed = confirm('Är du säker på att du vill ta bort denna fångst?');
     if (!confirmed) return;
 
     const { error } = await supabase
         .from('catches')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
 
     if (error) {
         console.error(error);
@@ -240,42 +379,25 @@ async function deleteFish(id) {
         return;
     }
 
+    if (fish?.imagePath) {
+        const { error: storageError } = await supabase
+            .storage
+            .from('fish-images')
+            .remove([fish.imagePath]);
+
+        if (storageError) {
+            console.error('Kunde inte ta bort bildfilen:', storageError);
+        }
+    }
+
     closeModal();
     await loadCatches();
     showSuccess('🗑️ Fångst borttagen');
 }
 
-
-// ======================
-// RESET FORM
-// ======================
-function resetForm() {
-    document.getElementById('addFishForm').reset();
-    document.getElementById('imagePreview').style.display = 'none';
-    document.getElementById('uploadText').style.display = 'block';
-    document.getElementById('imageUploadArea').classList.remove('has-image');
-}
-
-
-// ======================
-// SUCCESS MESSAGE
-// ======================
-function showSuccess(msg) {
-    const div = document.createElement('div');
-    div.className = 'success-message';
-    div.textContent = msg;
-    document.body.appendChild(div);
-
-    setTimeout(() => div.remove(), 3000);
-}
-
-
-// ======================
-// FILTER OPTIONS
-// ======================
 function updateFilterOptions() {
-    const species = [...new Set(catches.map(c => c.species))];
-    const locations = [...new Set(catches.map(c => c.location))];
+    const species = [...new Set(catches.map(catchItem => catchItem.species))];
+    const locations = [...new Set(catches.map(catchItem => catchItem.location))];
 
     const speciesSelect = document.getElementById('filterSpecies');
     const locationSelect = document.getElementById('filterLocation');
@@ -285,27 +407,23 @@ function updateFilterOptions() {
     speciesSelect.innerHTML = '<option value="">Alla fiskar</option>';
     locationSelect.innerHTML = '<option value="">Alla platser</option>';
 
-    species.forEach(s => {
-        speciesSelect.innerHTML += `<option value="${s}">${s}</option>`;
+    species.forEach(species => {
+        speciesSelect.innerHTML += `<option value="${species}">${species}</option>`;
     });
 
-    locations.forEach(l => {
-        locationSelect.innerHTML += `<option value="${l}">${l}</option>`;
+    locations.forEach(location => {
+        locationSelect.innerHTML += `<option value="${location}">${location}</option>`;
     });
 }
 
-
-// ======================
-// FILTER COLLECTION
-// ======================
 function filterCollection() {
     const speciesFilter = document.getElementById('filterSpecies').value;
     const locationFilter = document.getElementById('filterLocation').value;
     const sortBy = document.getElementById('sortBy').value;
 
-    let filtered = catches.filter(c => {
-        if (speciesFilter && c.species !== speciesFilter) return false;
-        if (locationFilter && c.location !== locationFilter) return false;
+    const filtered = catches.filter(catchItem => {
+        if (speciesFilter && catchItem.species !== speciesFilter) return false;
+        if (locationFilter && catchItem.location !== locationFilter) return false;
         return true;
     });
 
@@ -322,12 +440,9 @@ function filterCollection() {
     displayCollection(filtered);
 }
 
-
-// ======================
-// DISPLAY COLLECTION
-// ======================
 function displayCollection(list = catches) {
     const container = document.getElementById('collectionContainer');
+    if (!container) return;
 
     if (!list.length) {
         container.innerHTML = `
@@ -354,12 +469,8 @@ function displayCollection(list = catches) {
     `).join('');
 }
 
-
-// ======================
-// DETAIL MODAL
-// ======================
 function showFishDetail(id) {
-    const fish = catches.find(c => c.id === id);
+    const fish = catches.find(catchItem => catchItem.id === id);
     if (!fish) return;
 
     const modal = document.getElementById('fishModal');
@@ -387,13 +498,12 @@ function showFishDetail(id) {
 }
 
 function closeModal() {
-    document.getElementById('fishModal').classList.remove('active');
+    const modal = document.getElementById('fishModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
 }
 
-
-// ======================
-// STATS
-// ======================
 function displayStats() {
     const statsContainer = document.getElementById('statsContainer');
     const topFishContainer = document.getElementById('topFishContainer');
@@ -477,10 +587,20 @@ function displayStats() {
     `).join('');
 }
 
+async function initAuth() {
+    const { data, error } = await supabase.auth.getSession();
 
-// ======================
-// GLOBAL (VIKTIGT)
-// ======================
+    if (error) {
+        console.error('Fel vid sessionshämtning:', error);
+    }
+
+    await refreshAuthState(data?.session || null);
+
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+        await refreshAuthState(session);
+    });
+}
+
 window.showView = showView;
 window.previewImage = previewImage;
 window.resetForm = resetForm;
@@ -489,8 +609,4 @@ window.showFishDetail = showFishDetail;
 window.closeModal = closeModal;
 window.deleteFish = deleteFish;
 
-
-// ======================
-// START
-// ======================
-loadCatches();
+initAuth();

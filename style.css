@@ -34,6 +34,10 @@ body {
     padding: 20px;
 }
 
+.hidden {
+    display: none !important;
+}
+
 header {
     background: rgba(30, 41, 59, 0.8);
     backdrop-filter: blur(10px);
@@ -69,6 +73,29 @@ header {
 nav {
     display: flex;
     gap: 15px;
+}
+
+.user-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    margin-right: 16px;
+}
+
+.user-status {
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-align: right;
+}
+
+.logout-btn {
+    display: none;
+}
+
+.logout-btn.visible {
+    display: inline-flex;
+    align-items: center;
 }
 
 .nav-btn {
@@ -122,6 +149,62 @@ nav {
 .section-subtitle {
     font-size: 24px;
     margin-top: 40px;
+}
+
+.auth-section {
+    min-height: calc(100vh - 160px);
+    display: grid;
+    align-items: center;
+    gap: 28px;
+    padding: 24px 0 8px;
+}
+
+.auth-hero {
+    max-width: 760px;
+}
+
+.auth-kicker {
+    color: var(--secondary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+}
+
+.auth-hero h1 {
+    font-size: clamp(34px, 5vw, 56px);
+    line-height: 1.05;
+    margin-bottom: 16px;
+}
+
+.auth-text {
+    color: var(--text-secondary);
+    font-size: 18px;
+    max-width: 620px;
+    line-height: 1.6;
+}
+
+.auth-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.auth-card {
+    backdrop-filter: blur(8px);
+}
+
+.auth-title {
+    color: var(--primary);
+    margin-bottom: 20px;
+}
+
+.auth-btn {
+    width: 100%;
+}
+
+.app-section {
+    width: 100%;
 }
 
 .card {
@@ -547,6 +630,13 @@ textarea:focus {
         gap: 15px;
     }
 
+    .user-bar {
+        margin: 0;
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
     nav {
         width: 100%;
         justify-content: center;
@@ -566,6 +656,7 @@ textarea:focus {
         grid-template-columns: 1fr;
     }
 
+    .auth-grid,
     .form-row,
     .modal-grid {
         grid-template-columns: 1fr;
