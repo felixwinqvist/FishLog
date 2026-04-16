@@ -7,6 +7,69 @@ const supabase = createClient(
 
 let catches = [];
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
+}
+
+function formatWeight(weight) {
+    if (!Number.isFinite(weight)) return '-';
+    return `${weight.toFixed(weight % 1 === 0 ? 0 : 2)} kg`;
+}
+
+function formatLength(length) {
+    if (!Number.isFinite(length)) return 'Okänd längd';
+    return `${length.toFixed(length % 1 === 0 ? 0 : 1)} cm`;
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Okänt datum';
+
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+
+    return new Intl.DateTimeFormat('sv-SE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    }).format(date);
+}
+
+function getLocationStats() {
+    const locations = new Map();
+
+    catches.forEach(catchItem => {
+        const key = catchItem.location.trim();
+        const current = locations.get(key) || { location: key, count: 0, totalWeight: 0 };
+        current.count += 1;
+        current.totalWeight += catchItem.weight || 0;
+        locations.set(key, current);
+    });
+
+    return [...locations.values()].sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return b.totalWeight - a.totalWeight;
+    });
+}
+
+function getSpeciesStats() {
+    const speciesMap = new Map();
+
+    catches.forEach(catchItem => {
+        const key = catchItem.species.trim();
+        const current = speciesMap.get(key) || { species: key, count: 0 };
+        current.count += 1;
+        speciesMap.set(key, current);
+    });
+
+    return [...speciesMap.values()].sort((a, b) => b.count - a.count);
+}
+
 // ======================
 // INIT
 // ======================
@@ -267,16 +330,25 @@ function displayCollection(list = catches) {
     const container = document.getElementById('collectionContainer');
 
     if (!list.length) {
-        container.innerHTML = '<p>Ingen fångst ännu</p>';
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">🎣</div>
+                <p>Ingen fångst ännu. Lägg till din första fisk för att fylla samlingen.</p>
+            </div>
+        `;
         return;
     }
 
     container.innerHTML = list.map(fish => `
         <div class="fish-card" onclick="showFishDetail('${fish.id}')">
-            <img src="${fish.image}" class="fish-image">
+            <img src="${escapeHtml(fish.image)}" class="fish-image" alt="${escapeHtml(fish.species)}">
             <div class="fish-info">
-                <div class="fish-species">${fish.species}</div>
-                <div>${fish.weight} kg</div>
+                <div class="fish-species">${escapeHtml(fish.species)}</div>
+                <div class="fish-details">
+                    <span class="detail-badge">⚖️ ${formatWeight(fish.weight)}</span>
+                    <span class="detail-badge">📍 ${escapeHtml(fish.location)}</span>
+                    <span class="detail-badge">📅 ${formatDate(fish.date)}</span>
+                </div>
             </div>
         </div>
     `).join('');
@@ -294,9 +366,20 @@ function showFishDetail(id) {
     const content = document.getElementById('modalContent');
 
     content.innerHTML = `
-        <img src="${fish.image}" style="width:100%; margin-bottom:20px;">
-        <h2>${fish.species}</h2>
-        <p>${fish.weight} kg</p>
+        <img src="${escapeHtml(fish.image)}" alt="${escapeHtml(fish.species)}" class="modal-image">
+        <h2 class="modal-title">${escapeHtml(fish.species)}</h2>
+        <div class="modal-grid">
+            <div class="detail-badge modal-badge">⚖️ ${formatWeight(fish.weight)}</div>
+            <div class="detail-badge modal-badge">📏 ${formatLength(fish.length)}</div>
+            <div class="detail-badge modal-badge-full">📍 ${escapeHtml(fish.location)}</div>
+            <div class="detail-badge modal-badge-full last">📅 ${formatDate(fish.date)}</div>
+        </div>
+        ${fish.notes ? `
+            <div class="notes-box">
+                <strong class="notes-title">Anteckningar</strong>
+                <p class="notes-text">${escapeHtml(fish.notes)}</p>
+            </div>
+        ` : ''}
         <button class="delete-btn" onclick="deleteFish('${fish.id}')">🗑️ Ta bort fångst</button>
     `;
 
@@ -313,9 +396,85 @@ function closeModal() {
 // ======================
 function displayStats() {
     const statsContainer = document.getElementById('statsContainer');
-    if (!statsContainer) return;
+    const topFishContainer = document.getElementById('topFishContainer');
+    const topLocationsContainer = document.getElementById('topLocationsContainer');
 
-    statsContainer.innerHTML = `<div>${catches.length} fångster</div>`;
+    if (!statsContainer || !topFishContainer || !topLocationsContainer) return;
+
+    if (!catches.length) {
+        statsContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📊</div>
+                <p>Ingen statistik ännu. När du loggar fångster visas din översikt här.</p>
+            </div>
+        `;
+        topFishContainer.innerHTML = '';
+        topLocationsContainer.innerHTML = '';
+        return;
+    }
+
+    const totalCatches = catches.length;
+    const totalWeight = catches.reduce((sum, fish) => sum + (fish.weight || 0), 0);
+    const averageWeight = totalWeight / totalCatches;
+    const biggestCatch = catches.reduce((biggest, fish) => (
+        !biggest || fish.weight > biggest.weight ? fish : biggest
+    ), null);
+    const speciesStats = getSpeciesStats();
+    const locationStats = getLocationStats();
+    const heaviestFive = [...catches]
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 5);
+
+    statsContainer.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${totalCatches}</div>
+            <div class="stat-label">Totala fångster</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${totalWeight.toFixed(1)}</div>
+            <div class="stat-label">Total vikt i kilo</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${averageWeight.toFixed(2)}</div>
+            <div class="stat-label">Snittvikt per fisk</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${speciesStats.length}</div>
+            <div class="stat-label">Unika fiskarter</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${escapeHtml(biggestCatch.species)}</div>
+            <div class="stat-label">Största fisken: ${formatWeight(biggestCatch.weight)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${escapeHtml(locationStats[0].location)}</div>
+            <div class="stat-label">Mest fiskade platsen (${locationStats[0].count} st)</div>
+        </div>
+    `;
+
+    topFishContainer.innerHTML = heaviestFive.map((fish, index) => `
+        <div class="top-item" onclick="showFishDetail('${fish.id}')">
+            <div class="rank-number">#${index + 1}</div>
+            <img src="${escapeHtml(fish.image)}" alt="${escapeHtml(fish.species)}" class="top-fish-image">
+            <div class="top-item-content">
+                <div class="top-item-title">${escapeHtml(fish.species)} • ${formatWeight(fish.weight)}</div>
+                <div class="top-item-meta">${escapeHtml(fish.location)} • ${formatDate(fish.date)}${fish.length ? ` • ${formatLength(fish.length)}` : ''}</div>
+            </div>
+        </div>
+    `).join('');
+
+    topLocationsContainer.innerHTML = locationStats.slice(0, 5).map((location, index) => `
+        <div class="location-item">
+            <div class="location-left">
+                <div class="rank-number">#${index + 1}</div>
+                <div>
+                    <div class="top-item-title">${escapeHtml(location.location)}</div>
+                    <div class="top-item-meta">${location.totalWeight.toFixed(1)} kg total fångstvikt</div>
+                </div>
+            </div>
+            <div class="location-count">${location.count} st</div>
+        </div>
+    `).join('');
 }
 
 
