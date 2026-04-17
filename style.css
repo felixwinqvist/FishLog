@@ -26,6 +26,7 @@ body {
     color: var(--text-primary);
     min-height: 100vh;
     padding-bottom: 80px;
+    overflow-x: hidden;
 }
 
 .container {
@@ -73,6 +74,7 @@ header {
 nav {
     display: flex;
     gap: 15px;
+    flex-wrap: wrap;
 }
 
 .user-bar {
@@ -108,6 +110,7 @@ nav {
     font-weight: 600;
     transition: all 0.3s;
     font-family: 'Poppins', sans-serif;
+    white-space: nowrap;
 }
 
 .nav-btn:hover,
@@ -422,6 +425,7 @@ textarea:focus {
 
 .filter-bar select {
     max-width: 200px;
+    flex: 1 1 180px;
 }
 
 .filter-label {
@@ -624,41 +628,265 @@ textarea:focus {
     font-weight: 700;
 }
 
+@media (max-width: 1024px) {
+    .container {
+        padding: 18px;
+    }
+
+    .header-content {
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+
+    .user-bar {
+        order: 3;
+        width: 100%;
+        justify-content: space-between;
+        margin: 0;
+    }
+
+    nav {
+        order: 2;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .nav-btn {
+        flex: 1 1 0;
+        text-align: center;
+        padding: 10px 14px;
+    }
+
+    .auth-hero h1 {
+        max-width: 12ch;
+    }
+}
+
 @media (max-width: 768px) {
+    body {
+        padding-bottom: 48px;
+    }
+
     .header-content {
         flex-direction: column;
-        gap: 15px;
+        align-items: stretch;
+        gap: 12px;
+        padding: 0 16px;
     }
 
     .user-bar {
         margin: 0;
         width: 100%;
-        justify-content: center;
+        justify-content: space-between;
         flex-wrap: wrap;
+        gap: 10px;
     }
 
     nav {
         width: 100%;
-        justify-content: center;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    nav::-webkit-scrollbar {
+        display: none;
     }
 
     .nav-btn {
-        flex: 1;
-        font-size: 12px;
-        padding: 8px 12px;
+        flex: 0 0 auto;
+        min-width: max-content;
+        font-size: 13px;
+        padding: 10px 14px;
     }
 
     .section-title {
         font-size: 24px;
+        margin: 28px 0 16px;
+        gap: 8px;
+    }
+
+    .container {
+        padding: 16px;
+    }
+
+    .card {
+        padding: 20px;
+        border-radius: 14px;
+    }
+
+    .auth-section {
+        min-height: auto;
+        padding-top: 8px;
+    }
+
+    .auth-hero h1 {
+        font-size: clamp(30px, 9vw, 40px);
+        max-width: none;
+    }
+
+    .auth-text {
+        font-size: 16px;
+    }
+
+    .auth-card {
+        margin-bottom: 0;
+    }
+
+    .btn,
+    .btn-secondary {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .btn + .btn {
+        margin-top: 10px;
+    }
+
+    .image-upload {
+        padding: 28px 18px;
+    }
+
+    .filter-bar {
+        padding: 16px;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .filter-label {
+        width: 100%;
+    }
+
+    .filter-bar select {
+        max-width: none;
+        width: 100%;
+    }
+
+    .stat-card {
+        padding: 20px 18px;
+    }
+
+    .stat-value {
+        font-size: 36px;
+    }
+
+    .top-item,
+    .location-item {
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .rank-number {
+        font-size: 24px;
+        min-width: 28px;
+    }
+
+    .top-fish-image {
+        width: 64px;
+        height: 64px;
+    }
+
+    .top-item-title {
+        font-size: 16px;
+    }
+
+    .top-item-meta {
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .location-left {
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .location-item {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .location-count {
+        align-self: flex-start;
     }
 
     .collection-grid {
         grid-template-columns: 1fr;
+        gap: 16px;
     }
 
     .auth-grid,
     .form-row,
     .modal-grid {
         grid-template-columns: 1fr;
+    }
+
+    .modal {
+        padding: 12px;
+        align-items: flex-end;
+    }
+
+    .modal-content {
+        max-width: none;
+        width: 100%;
+        max-height: 88vh;
+        padding: 20px 16px 18px;
+        border-radius: 18px 18px 0 0;
+    }
+
+    .modal-close {
+        top: 14px;
+        right: 14px;
+    }
+
+    .success-message {
+        left: 16px;
+        right: 16px;
+        top: auto;
+        bottom: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo {
+        font-size: 21px;
+    }
+
+    .logo-icon {
+        font-size: 28px;
+    }
+
+    .user-status {
+        width: 100%;
+        text-align: left;
+        font-size: 14px;
+    }
+
+    .logout-btn.visible {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .section-title {
+        font-size: 22px;
+    }
+
+    .card {
+        padding: 18px 16px;
+    }
+
+    .fish-info {
+        padding: 14px;
+    }
+
+    .fish-species {
+        font-size: 18px;
+    }
+
+    .detail-badge {
+        width: 100%;
+        justify-content: center;
     }
 }
